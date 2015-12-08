@@ -56,12 +56,34 @@ module.exports = function(sequelize, DataTypes) {
 						}
 					}).then(function(user) {
 						if (!user || !bcrypt.compareSync(body.password, user.get('password_hash'))) {
-							return reject(); //401 means autehntication is possible but it failed
+							return reject();
 						}
+
 						resolve(user);
 					}, function(e) {
 						reject();
 					});
+				});
+			},
+			findByToken: function(token) {
+				return new Promise(function(resolve, reject) {
+					try {
+						var decodedJWT = jwt.verify(token, 'qwerty098');
+						var bytes = cryptojs.AES.decrypt(decodedJWT.token, 'abc123!@#!');
+						var tokenData = JSON.parse(bytes.toString(cryptojs.enc.Utf8));
+
+						user.findById(tokenData.id).then(function (user) {
+							if (user) {
+								resolve(user);
+							} else {
+								reject();
+							}
+						}, function (e) {
+							reject();
+						});
+					} catch (e) {
+						reject();
+					}
 				});
 			}
 		},
@@ -70,24 +92,29 @@ module.exports = function(sequelize, DataTypes) {
 				var json = this.toJSON();
 				return _.pick(json, 'id', 'email', 'createdAt', 'updatedAt');
 			},
-			generateToken: function (type){
-				if(!_.isString(type)){
+			generateToken: function(type) {
+				if (!_.isString(type)) {
 					return undefined;
 				}
-				try{
-					var stringData = JSON.stringify({id: this.get('id'), type: type});
+
+				try {
+					var stringData = JSON.stringify({
+						id: this.get('id'),
+						type: type
+					});
 					var encryptedData = cryptojs.AES.encrypt(stringData, 'abc123!@#!').toString();
 					var token = jwt.sign({
 						token: encryptedData
 					}, 'qwerty098');
 
 					return token;
-				}catch(e){
+				} catch (e) {
 					console.error(e);
 					return undefined;
 				}
 			}
 		}
 	});
+
 	return user;
 };
